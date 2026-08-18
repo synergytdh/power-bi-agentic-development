@@ -17,9 +17,14 @@ pulls this repo, not upstream.
 | `pbip` | `hooks/hooks.json` removed (scripts left in place for reference) | The PostToolUse hooks ran three bash spawns on every Edit/Write in every project. Validation here is the repo's own pre-push stack (`pbir validate`, Tabular Editor 2 BPA, `validate-pbir.py`, `preview-pages.py`). |
 | `pbi-desktop` | `hooks/hooks.json` removed; `connect-pbid/SKILL.md` line about active hooks rewritten | The PreToolUse gates fired four bash spawns on every Bash call and, once `jq` is present, deny TOM/PowerShell commands (`.Measures.Add`, `-File *.ps1`) that the local scripts use. |
 
-Plugin versions are left at upstream's numbers on purpose, so "installed vs
-upstream" comparisons stay meaningful; the override is visible only in this
-file and in git history.
+Overridden plugins carry a patch bump over upstream (26.31.0 -> 26.31.1 for
+custom-visuals, fabric-cli, pbip, pbi-desktop) because `claude plugin update`
+is version-keyed: with an unchanged number it reports "already at the latest
+version" and never re-copies the content. Rule: every override change bumps
+the patch number of the touched plugin; after an upstream sync, re-bump each
+overridden plugin ABOVE upstream's new number. Un-overridden plugins keep
+upstream's numbers, so an installed-vs-upstream comparison still reads
+correctly for them.
 
 ## Syncing from upstream
 
