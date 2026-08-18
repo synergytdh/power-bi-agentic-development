@@ -45,7 +45,7 @@ Full loop on an open PBIP: change the model with TOM here, change visuals with `
 - Do not modify model metadata without explicit user direction
 - Always call `$model.SaveChanges()` to persist modifications; without it, changes are discarded
 - For macOS users running PBI Desktop in Parallels, see [parallels-macos.md](./references/parallels-macos.md)
-- **Validation hooks** are active for this plugin; they validate DAX references, enforce measure metadata, check referential integrity, and report compatibility level upgrade opportunities. Toggle checks in `hooks/config.yaml`.
+- **Validation hooks are NOT registered in this fork** (synergytdh override: `hooks/hooks.json` removed so no PreToolUse/PostToolUse gates run; the scripts remain under `hooks/` for reference). Upstream ships hooks that validate DAX references, enforce measure metadata, check referential integrity, and report compatibility level upgrade opportunities; validation here happens in the repo's own pre-push stack instead.
 
 
 ## 1. Prerequisites
