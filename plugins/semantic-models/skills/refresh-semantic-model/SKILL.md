@@ -45,7 +45,7 @@ Before triggering the refresh, capture a baseline snapshot to later verify that 
 ```bash
 fab api -A powerbi "groups/$WS_ID/datasets/$MODEL_ID/executeQueries" \
   -X post -i '{
-    "queries": [{"query": "EVALUATE ROW(\"RowCount\", COUNTROWS(FactSales), \"MaxDate\", MAX(FactSales[OrderDate]))"}],
+    "queries": [{"query": "EVALUATE ROW(\"RowCount\", COUNTROWS(FactSales), \"MaxDate\", MAX('FactSales'[OrderDate]))"}],
     "serializerSettings": {"includeNulls": true}
   }'
 ```
@@ -122,7 +122,7 @@ After the refresh completes, re-run the same DAX query from Step 2 and compare:
 ```bash
 fab api -A powerbi "groups/$WS_ID/datasets/$MODEL_ID/executeQueries" \
   -X post -i '{
-    "queries": [{"query": "EVALUATE ROW(\"RowCount\", COUNTROWS(FactSales), \"MaxDate\", MAX(FactSales[OrderDate]))"}],
+    "queries": [{"query": "EVALUATE ROW(\"RowCount\", COUNTROWS(FactSales), \"MaxDate\", MAX('FactSales'[OrderDate]))"}],
     "serializerSettings": {"includeNulls": true}
   }'
 ```
@@ -299,5 +299,5 @@ Pro capacity supports only full-model standard refreshes. Enhanced refresh featu
 
 - **`semantic-model`** -- Model design, build, and quality/performance review
 - **`lineage-analysis`** -- Downstream report discovery and impact analysis
-- **`standardize-naming-conventions`** -- Naming audit and remediation
+- **`organize-semantic-model`** -- Organization and naming remediation
 - **`fabric-cli`** (fabric-cli plugin) -- Workspace and item management via `fab` CLI

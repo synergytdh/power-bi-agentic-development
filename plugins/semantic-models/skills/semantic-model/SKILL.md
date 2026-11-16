@@ -25,11 +25,17 @@ Guidance for designing, building, refreshing, and reviewing Power BI / Analysis 
 
 Reach for the narrowest capable tool, in order. Most edits never leave step 1.
 
-1. **`te` CLI first.** One verb per operation, staged in memory until `--save`, with a save-time DAX + referential-integrity gate. Covers add/set/rm/mv for measures, columns, relationships (`Sales[K]->Dim[K]` shorthand on `te add`), roles + RLS filters, calculation groups / items, incremental-refresh policy, `te format`, `te bpa`, `te vertipaq`, `te query`. Each Bash call is a fresh shell, so pass `-m <model>` (and `-s`/`-d` for remote) on every command, or set `TE_SESSION`. Read the real object's settable surface first with `te get <obj>` and `te set <obj> -q <prop>` (no value). The `te-cli` skill is the full command reference.
-2. **TOM, or a model MCP, when `te` cannot reach a property.** Some properties are absent from `te set -q` (for example `alternateOf`, `securityFilteringBehavior`, `crossFilteringBehavior`, KPI sub-objects, linguistic-schema content, calendar objects). Drive these through a `te script` C# pass (in-process TOM), or the `connect-pbid` skill (PowerShell + TOM/ADOMD against a live local Desktop instance, and the only route to traces: `EVALUATEANDLOG`, aggregation-hit events, storage DMVs). The Power BI Modeling MCP server is also available if you prefer an MCP. The local Desktop proxy cannot reach Direct Lake; use a remote XMLA endpoint there.
+1. **`te` CLI first.** One verb per operation, staged in memory until `--save`, with a save-time DAX + referential-integrity gate. Covers add/set/rm/mv for measures, columns, relationships (`Sales[K]->Dim[K]` shorthand on `te add`), roles + RLS filters, calculation groups / items, DAX formatting (`te set <path> --format Expression`, or `te script --inline "Model.AllMeasures.FormatDax();"` for the whole model), `te bpa`, `te vertipaq`, `te query`. Each Bash call is a fresh shell, so pass `--model <path>` (or `-s`/`-d` for remote) on every command, or set `TE_SESSION`. Properties are `-p Name=Value`; read the real object's settable surface first with `te get <obj> --properties`. Every mutation is a dry run until `--save`. The `te-cli` skill is the full command reference.
+2. **TOM, or a model MCP, when `te` cannot reach a property.** Some properties are absent from `te set -p` (for example `alternateOf`, `securityFilteringBehavior`, `crossFilteringBehavior`, KPI sub-objects, linguistic-schema content, calendar objects). Drive these through a `te script` C# pass (in-process TOM), or the `connect-pbid` skill (PowerShell + TOM/ADOMD against a live local Desktop instance, and the only route to traces: `EVALUATEANDLOG`, aggregation-hit events, storage DMVs). The Power BI Modeling MCP server is also available if you prefer an MCP. The local Desktop proxy cannot reach Direct Lake; use a remote XMLA endpoint there.
 3. **`fab` + direct TMDL last, with the `tmdl` skill.** Service- and file-shape operations with no model-edit verb: assigning Entra principals to roles (workspace-side, not in `.tmdl`), report-to-model binding, Copilot-folder features (AI instructions, AI data schema, verified answers), Lakehouse / Delta reshaping behind Direct Lake, and bulk structural surgery that is cleaner as one TMDL diff than N `te` calls. For read-only Fabric retrieval of AI instructions / schema, use `scripts/get_semantic_model_ai_metadata.py`. Author the TMDL with the `tmdl` skill, then run `te validate`.
 
 Ordering gate: add relationships before any measure that uses `RELATED()` or a cross-table `CALCULATE()`, or the save gate fails with `DAX0002` (no relationship in context).
+
+## Object references in DAX and metadata
+
+Write column references as `'Table'[Column]`: the table name is always present and always in single quotes. Write measure references as `[Measure]`, never prefixed with a table. This applies everywhere DAX or model metadata names an object: measure, calculated column and calculation item expressions, RLS filters, format string expressions, DAX queries (`te query`, `pbir model -q`), and descriptions or annotations that mention an object.
+
+Why: a measure belongs to the model rather than to its home table, so moving it between tables must not change any expression that uses it; a bare `[Measure]` also tells the reader at a glance that it is a measure and not a column. An unqualified column is ambiguous as soon as two tables share a column name, and quoting every table name keeps one consistent form whether or not the name needs quotes.
 
 ## Lifecycle
 
@@ -52,7 +58,7 @@ Audit against the categories below and produce prioritized findings with file lo
 - **Data reduction**: unfiltered fact history (no incremental refresh), unnecessary columns, detail grain not needed for reporting, logic better pushed upstream
 - **DAX correctness**: filtering tables not columns in CALCULATE, unguarded division, context-blind calc columns, variable time-shift bugs (`references/dax-authoring.md`; for query tuning use the `dax` skill)
 - **Measure hygiene**: implicit measures, report-scoped measures that belong in the model, ambiguous duplicates
-- **Documentation & AI**: missing descriptions (Copilot truncates after 200 characters), missing display folders, missing synonyms, inconsistent naming (use `standardize-naming-conventions`)
+- **Documentation & AI**: missing descriptions (Copilot truncates after 200 characters), missing display folders, missing synonyms, inconsistent naming (use `organize-semantic-model`)
 - **Design**: star-schema violations, mis-marked date table, many-to-many without a bridge, dead inactive relationships
 - **Direct Lake**: non-unique one-side keys (queries fail at runtime), DirectQuery fallback, calculated-column support by Direct Lake flavor, Delta guardrail breaches
 
@@ -63,7 +69,7 @@ Audit against the categories below and produce prioritized findings with file lo
 - `connect-pbid`: TOM / ADOMD via PowerShell against a live Desktop instance; traces; the TOM / MCP tier
 - `te-cli`: the `te` command reference
 - `c-sharp-scripting`: TOM C# scripts and macros (`te script`) for properties `te` cannot reach
-- `standardize-naming-conventions`: naming audit and remediation
+- `organize-semantic-model`: organization and naming remediation
 - `refresh-semantic-model`: refresh monitoring and troubleshooting
 - `lineage-analysis`: artifact lineage (downstream reports and models that consume this model, across workspaces); distinct from intra-model object dependencies
 - `bpa-rules` (tabular-editor): authoring BPA rules; `fabric-cli`: service / workspace operations

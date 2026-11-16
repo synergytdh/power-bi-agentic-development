@@ -1,6 +1,6 @@
 ---
 name: fabric-cli
-description: Expert guidance for using the Fabric CLI (`fab`) to fully interact with Fabric workspaces, items, and configuration. Automatically invoke this skill whenever the user mentions "Fabric" or "Power BI Service" or a "Fabric/Power BI workspace".
+description: "Expert guidance for the Fabric CLI (`fab`) and the Fabric and Power BI REST APIs: workspaces, items, lakehouses, notebooks, pipelines, semantic models, reports, capacities, OneLake, deployment and admin. Also estimates the capacity units (CU) an operation will consume and its impact on the capacity before running it. Automatically invoke whenever the user mentions Fabric, Power BI Service, a Fabric or Power BI workspace, a capacity or F SKU, OneLake, `fab`, or asks to create, run, refresh, schedule, deploy or delete anything in Fabric, including preview items such as Plan, Ontology, Graph or Copilot."
 ---
 
 # Fabric CLI
@@ -11,27 +11,31 @@ Guidance for using `fab` to programmatically manage Fabric & Power BI service
 - Fabric CLI is for working with the Cloud environment and not local files; it works with Power BI Pro, PPU, or Fabric; you DO NOT need a Fabric SKU to use the Fabric CLI
 - Keep `fab` current: check the installed version against the latest `ms-fabric-cli` release and upgrade with `uv tool upgrade ms-fabric-cli` unless the user has pinned a specific version. Discover commands and flags with `fab --help` and `fab <command> --help` rather than hard-coding behavior; the CLI surface changes regularly
 
-> [!IMPORTANT] 
-> Any time you encounter errors, user preferences or learnings when using the Fabric cli, ALWAYS note these down in the user memory rules, i.e. `.claude/rules/fabric-cli.md` for future improvement. 
-> This is ONLY for generic learnings and not for item- or task-specific learnings.
-
-## When to use this skill
-
-- Use whenever the user mentions "Fabric" or "Power BI"
-- Use when user asks about Power BI workspaces, deployment, tenants, publishing, download, permissions, or data
-
+Record generic `fab` learnings (errors, user preferences) in `.claude/rules/fabric-cli.md` so
+later sessions start with them; item- or task-specific findings do not go there.
 
 ## Critical general rules
 
-- IMPORTANT: The first time you use `fab` run check that it is up to date to the latest version (upgrade with `uv tool upgrade ms-fabric-cli` unless the user has pinned a version) and run `fab auth status`; If user isn't authenticated, ask them to run `fab auth login`
+- On first use, run `fab auth status`; if it is not authenticated, ask the user to run `fab auth login`
 - Always use `fab --help` and `fab <command> --help` the first time you use a command to understand its syntax
 - You must search the skill /references/ for relevant reference files that explain certain commands, examples, scripts, or workflows before you start using `fab`
 - Before first use, ask the user if they have Fabric admin access, sensitivity labels or DLP policies, any API restrictions, or preferences for Fabric/Power BI API usage; remind user to add this to memory files
 - If workspace or item name is unclear, ask the user first, then verify with `fab ls` or `fab exists` before proceeding
 - Ensure that you avoid removing or moving items, workspaces, or definitions, or changing properties without explicit user direction
+- IMPORTANT: Before any operation that consumes capacity units (creating items, running notebooks, pipelines or refreshes, large queries, Copilot, preview items such as Plan, Ontology or Graph, anything scheduled), estimate its CU-hours and its impact on the capacity, and get explicit user approval when the charge is flat or per session, exceeds a quarter of the capacity's daily CU-hours, recurs, cannot be estimated, or the capacity already throttles; a user naming a feature is not consent to its cost. See [Capacity cost](#capacity-cost-estimate-before-acting) and [capacity-cost.md](./references/capacity-cost.md)
 - If a command is blocked in your permissions and you try to use it, stop and ask the user for clarification; never try to circumvent it
 - Create output directories before export: `fab export` does not create intermediate directories; `mkdir -p` the output path first or the command fails with `[InvalidPath]`
 
+
+### Capacity cost: estimate before acting
+
+Bursting hides cost: operations finish fast and their CUs are smoothed into the next 5 to 64 minutes (interactive) or 24 hours (background). On a small F SKU one operation can use more than a day of capacity, and the carry forward then throttles every workspace on it until idle capacity pays it back, which on an F2 can take weeks.
+
+- Check the capacity first: `fab ls .capacities -l` for SKU and state; the Monitoring hub capacity page for utilization, throttling and carry forward. Any carry forward means no headroom
+- Estimate the operation in CU-hours and EUR, and as a share of the SKU's daily budget (an F<n> has 24 * n CU-hours a day; an F2 has 48)
+- Know the flat charges: Plan (preview) bills 30-day sessions per user (Planner 847, Stakeholder 168, Viewer 37 CU-hours); creating and editing a plan by REST was billed as a Stakeholder session (168 CU-h), and a session cannot be ended or refunded
+- Pausing (`fab stop`) bills the whole carry forward at once and clears throttling; scaling up burns it down faster at a similar total cost
+- Full thresholds, formulas, known charges and where to see what an operation cost: [capacity-cost.md](./references/capacity-cost.md)
 
 ### Use `-f` (force) for non-interactive use
 
@@ -68,7 +72,7 @@ You must read and understand the common list of operations with simple examples
    - Table schema: `fab table schema "ws.Workspace/LH.Lakehouse/Tables/gold/orders"`
 7. Query data (always prefer the wrapper scripts over raw `fab api` / `duckdb` / `sqlcmd`; they resolve IDs, hosts, and auth for you):
    - Semantic model (DAX): `python3 scripts/execute_dax.py "ws.Workspace/Model.SemanticModel" -q "EVALUATE TOPN(10, 'Orders')"`
-   - Lakehouse SQL endpoint, warehouse, or SQL database (T-SQL): prefer the `fabric-sql` MCP `execute_query(workspaceId, itemId, query)` when it is loaded; fall back to `python3 scripts/query_sql_endpoint.py "ws.Workspace/LH.Lakehouse" -q "SELECT TOP 10 * FROM dbo.orders"`. See [querying-data.md](./references/querying-data.md#querying-the-sql-endpoint-route-priority)
+   - Lakehouse SQL endpoint, warehouse, or SQL database (T-SQL): `python3 scripts/query_sql_endpoint.py "ws.Workspace/LH.Lakehouse" -q "SELECT TOP 10 * FROM dbo.orders"`; a `fabric-sql` MCP is only present if the user registered one. See [querying-data.md](./references/querying-data.md#querying-the-sql-endpoint-route-priority)
    - Lakehouse or warehouse Delta over OneLake (DuckDB): `python3 scripts/query_lakehouse_duckdb.py "ws.Workspace/LH.Lakehouse" -q "SELECT * FROM tbl LIMIT 10" -t gold.orders`
 8. Set properties for an item or workspace: `fab set "ws.Workspace/Item.Notebook" -q displayName -i "New Name"` or `fab set "ws.Workspace" -q description -i "Production environment"`
 9. Review or manage permissions:
@@ -88,7 +92,7 @@ You must read and understand the common list of operations with simple examples
 
 ## Essential Concepts
 
-For information about any concepts related to Power BI or Fabric you must search or fetch via the `microsoft-learn` MCP server (or the `pbi-search` CLI as an alternative) and ask the user questions with the `AskUserQuestion` tool; NEVER guess or make assumptions.
+For information about any concepts related to Power BI or Fabric you must search or fetch the Microsoft Learn documentation at https://learn.microsoft.com (or use the `pbi-search` CLI) and ask the user questions with the `AskUserQuestion` tool; NEVER guess or make assumptions.
 
 ### Workspaces
 
@@ -291,8 +295,8 @@ Fabric exposes three query paths depending on the source; always prefer the wrap
   - Multi-table joins or raw files in `Files/`: pass `--sql` with your own `delta_scan()` / `read_csv` / `read_json_auto` calls
   - Optionally scaffold a Direct Lake model instead: [`scripts/create_direct_lake_model.py`](./scripts/create_direct_lake_model.py)
 - Lakehouse SQL endpoint, Warehouse, or SQL Database (T-SQL):
-  - Prefer the `fabric-sql` MCP `execute_query(workspaceId, itemId, query)` when loaded; server-side, no local tooling
-  - Fall back to [`scripts/query_sql_endpoint.py`](./scripts/query_sql_endpoint.py) (`sqlcmd`; auto-detects host per item type, reuses `az login` via `ActiveDirectoryAzCli`) when the MCP is unavailable
+  - Use [`scripts/query_sql_endpoint.py`](./scripts/query_sql_endpoint.py) (`sqlcmd`; auto-detects host per item type, reuses `az login` via `ActiveDirectoryAzCli`)
+  - The plugin ships no `fabric-sql` MCP; use one only if the user registered it themselves
   - Prefer either over DuckDB when you need `INFORMATION_SCHEMA`, `sys.*` metadata, CTEs, or window functions
   - Full route priority: [querying-data.md](./references/querying-data.md#querying-the-sql-endpoint-route-priority)
 
@@ -538,9 +542,9 @@ Check references before deploying:
 
 ## Gotchas
 
-- **IMPORTANT:** DON'T try to use `fab ls` on items that aren't data items (.Lakehouse, .Warehouse, etc); use `fab ls` to find workspaces and items, and use `fab get` to look at definitions
-- ALWAYS Use the `-f` flag when using `fab get`, `fab import`, `fab export`, etc. as described above
-- ONLY fallback to `fab api` when a command doesn't exist
+- `fab ls` lists workspaces and items and browses data items (.Lakehouse, .Warehouse); on other items it fails, so read their definitions with `fab get`
+- Pass `-f` to `fab get`, `fab import` and `fab export` to skip the overwrite and sensitivity prompts
+- Use `fab api` only when no command covers the operation
 - **Definition changes feel slow but aren't:** `fab import` / `nb create` / `nb cell edit` take 25-60s to push a notebook definition only because they poll the LRO at the server's `Retry-After: 20`. The work is ~1s. Use [`scripts/deploy_notebook.py`](./scripts/deploy_notebook.py) (tight-polls at ~0.3s) for definition changes; the poll interval is the single biggest lever
 
 ## References
@@ -585,6 +589,7 @@ governance / deploy
 - [Gateways](./references/gateways.md) - Datasources, credentials, dataset binding
 - [Folders](./references/folders.md) - Organize items into folders via API; includes best practices for structuring workspaces
 - [Tags](./references/tags.md) - Create, apply, and audit tenant/domain tags on items and workspaces via `fab api` (no native `fab tag` command)
+- [Capacity cost](./references/capacity-cost.md) - Estimate CU-hours and capacity impact before acting: SKU budgets, smoothing, throttling stages, carry forward and burndown, pause billing, known flat charges (Plan, Ontology, Copilot)
 - [fab vs az CLI](./references/fab-vs-az-cli.md) - When to use which; capacity, networking, Key Vault, monitoring, CMK, CI/CD
 - [Admin APIs](./references/admin.md) - Cross-workspace search, tenant operations, governance
 - [API Reference](./references/fab-api.md) - Capacities, domains, misc API patterns
@@ -603,6 +608,7 @@ governance / deploy
 - [download_workspace.py](./scripts/download_workspace.py) ; download a full workspace with all item definitions and lakehouse files
 - [run_notebook_checked.py](./scripts/run_notebook_checked.py) ; run a notebook and check its exit value, exiting non-zero when the notebook's own `{ok:false}` verdict fails despite a `Completed` job status (reads the exit value via the notebook job-instance beta endpoint)
 - [deploy_notebook.py](./scripts/deploy_notebook.py) ; create or update a notebook definition fast (~1-2s) by tight-polling the LRO instead of the CLI's ~20s `Retry-After` cadence; auto-detects create vs update, `--poll-interval` is the performance lever. Strongly prefer this over `fab import` / `nb` for any notebook definition change
+- [task_flow.py](./scripts/task_flow.py) ; create, update, export or delete a workspace task flow from a JSON spec (tasks, items as `<displayName>.<Type>`, edges) through the internal metadata endpoints the Fabric UI uses; no public API or `fab` command exists for task flows
 
 See [scripts/README.md](./scripts/README.md) for detailed usage, arguments, and examples. Always search the `scripts/` folder before writing a new helper; a script may already exist for the task.
 
