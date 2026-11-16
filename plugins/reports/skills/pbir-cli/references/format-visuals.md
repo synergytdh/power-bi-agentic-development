@@ -2,6 +2,16 @@
 
 Complete guide to formatting visuals using the pbir CLI. The core principle: **always check and prefer theme-level formatting before applying bespoke visual formatting**.
 
+## Table of Contents
+- [Formatting Hierarchy: Theme First](#formatting-hierarchy-theme-first)
+- [Discovering Properties](#discovering-properties)
+- [Setting Properties](#setting-properties)
+- [Bulk Formatting with Glob Patterns](#bulk-formatting-with-glob-patterns)
+- [Object Formatting Subcommands](#object-formatting-subcommands)
+- [Conditional Formatting](#conditional-formatting)
+- [Clearing Visual-Level Overrides (Reset to Theme)](#clearing-visual-level-overrides-reset-to-theme)
+- [Recommended Workflow](#recommended-workflow)
+
 ## Formatting Hierarchy: Theme First
 
 Power BI applies formatting in a cascade: **base theme -> custom theme -> visual-type defaults -> individual visual overrides**. Formatting set in the theme applies to all visuals of that type automatically and is far more maintainable than bespoke per-visual formatting.
@@ -228,8 +238,8 @@ pbir visuals cf "Visual.Visual" --measure "dataPoint.fill _Fmt.RevenueColor"
 
 Use `pbir get` / `pbir set` with a `.cf` dot-path tail. The old
 `pbir visuals cf --info`/`--list`/`--has`/`--set-color`/`--remove`/`--remove-all`
-flags are deprecated and redirect to these commands. see
-[conditional-formatting.md](conditional-formatting.md) for the full rewrite
+flags were removed in 0.9.30; see
+[conditional-formatting.md](conditional-formatting.md) for the rewrite
 table.
 
 ```bash
@@ -380,9 +390,11 @@ Notes:
 - Combined selector + interaction state in one path (e.g.
   `field(X).hover.prop`) is not yet supported and raises an explicit error.
   Apply them in two separate calls.
-- `pbir visuals format-field` and `pbir visuals format-state` are deprecated
-  aliases that print the equivalent `pbir set` command and exit non-zero.
-  Both are removed in 1.0.0.
+- `pbir visuals format-field` and `pbir visuals format-state` were removed in
+  0.9.30; the `field(...)` and `hover|press|selected` dot-path forms above are
+  the only surface.
+- `pbir visuals resize` and `pages resize` refuse zero or negative sizes before
+  saving; `pbir set --dry-run` never writes.
 
 ## Clearing Visual-Level Overrides (Reset to Theme)
 

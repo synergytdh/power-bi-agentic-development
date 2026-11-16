@@ -7,7 +7,23 @@ Two surfaces share one model:
 - **`pbir set` / `pbir get`**. dot-path reads and scalar edits on existing CF entries. Primary surface for daily work.
 - **`pbir visuals cf`**. structural authoring: create CF from scratch, copy CF between visuals, convert to theme tokens, convert to measure-driven.
 
-The old `pbir visuals cf --info`/`--list`/`--has`/`--set-color`/`--remove`/`--remove-all` flags are **deprecated** and redirect to `pbir set`/`pbir get`. See the [Deprecated Flags](#deprecated-flags) section.
+The old `pbir visuals cf --info`/`--list`/`--has`/`--set-color`/`--remove`/`--remove-all` flags no longer exist. See the [Removed Flags](#removed-flags) section for the rewrite table.
+
+## Table of Contents
+- [CF Types](#cf-types)
+- [Finding out what accepts CF](#finding-out-what-accepts-cf)
+- [Reading CF with `pbir get`](#reading-cf-with-pbir-get)
+- [Editing CF with `pbir set`](#editing-cf-with-pbir-set)
+- [Removing CF](#removing-cf)
+- [Creating CF with `pbir visuals cf`](#creating-cf-with-pbir-visuals-cf)
+- [Copying CF Between Visuals](#copying-cf-between-visuals)
+- [Converting to Theme Tokens](#converting-to-theme-tokens)
+- [Converting to Measure-Driven](#converting-to-measure-driven)
+- [Changing CF Type](#changing-cf-type)
+- [Common Containers and Properties](#common-containers-and-properties)
+- [Removed Flags](#removed-flags)
+- [Best Practices](#best-practices)
+- [Copy Formatting Between Visuals](#copy-formatting-between-visuals)
 
 ## CF Types
 
@@ -412,11 +428,11 @@ pbir visuals cf "Visual.Visual" --rules --field "Table.Field" \
 
 This table is a starting point, not the catalog. Run `pbir schema describe <type>.<container>` for the authoritative list on any visual type.
 
-## Deprecated Flags
+## Removed Flags
 
-The following `pbir visuals cf` flags are **deprecated** and will be removed in 1.0.0. They emit a red error, print the equivalent `pbir set` / `pbir get` command, and exit with status 1. Update your scripts using the rewrite table below.
+The following `pbir visuals cf` flags were deprecated in 0.9.29 and removed in 0.9.30 (the CLI now rejects them as unknown options). Rewrite older scripts with the table below.
 
-| Deprecated flag | Replacement |
+| Removed flag | Replacement |
 |---|---|
 | `--info dataPoint.fill` | `pbir get "<path>.dataPoint.fill.cf"` |
 | `--list` | `pbir get "<path>.**.cf"` |
@@ -440,5 +456,5 @@ Retained flags (create, copy, convert): `--gradient`, `--rules`, `--icons`, `--d
 Copy all formatting overrides from one visual to another without affecting field bindings:
 
 ```bash
-pbir cp "Report/Page.Page/Source.Visual" "Report/Page.Page/Target.Visual" --format-only
+pbir cp "Report.Report/Page.Page/Source.Visual" "Report.Report/Page.Page/Target.Visual" --format-only
 ```

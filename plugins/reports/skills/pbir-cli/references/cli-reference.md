@@ -20,6 +20,7 @@ Complete command reference for the pbir CLI. All commands prefixed with `pbir`.
 - [Connection and Fabric](#connection-and-fabric)
 - [Desktop Operations (Windows)](#desktop-operations-windows)
 - [Usage Metrics](#usage-metrics)
+- [Batch Automation](#batch-automation)
 - [Configuration and Setup](#configuration-and-setup)
 - [Visual Types Reference](#visual-types-reference)
 
@@ -67,7 +68,8 @@ pbir set "Report.Report/Page.Page/Visual.Visual.title.fontSize" --value 14
 pbir set "Report.Report/**/*.Visual.title.show" --value false -f  # Glob: all visuals
 pbir set "Report.Report/**/*.Visual.border.show" --value true -f  # Glob: all borders
 pbir set "path" --property "background.color" --value "#F0F0F0"   # Alternative syntax
-pbir set "path" --json '{"title": {"show": true, "text": "Sales"}}'  # JSON input
+pbir set "path" --json '{"title": {"show": true, "text": "Sales"}}'  # JSON input; accepts what `pbir get --json` returns
+pbir set "path.title.text" --value "Draft" --dry-run             # Preview; never writes
 
 # Discover properties
 pbir visuals properties "Report.Report/Page.Page/Visual.Visual"   # Tree view of all properties
@@ -152,6 +154,7 @@ pbir pages wallpaper "Report.Report/Page.Page" --color "#2B579A"  # Outspace/wal
 # Active page and interactions
 pbir pages active-page "Report.Report" "HomePage"
 pbir pages interactions "Report.Report/Page.Page"          # List/set visual interactions (cross-filter/highlight/none)
+pbir pages interactions "Report.Report/Page.Page" --source "Slicer_Region,Slicer_Year" --target "Card_Sales,Card_Orders" --type NoFilter   # Every source-target pair in one call
 pbir pages json "Report.Report/Page.Page"                  # Raw page JSON
 
 # Drillthrough, tooltip pages, and theme conformance
@@ -237,6 +240,13 @@ pbir visuals shadow "Visual.Visual" --show       # Drop shadow
 pbir visuals padding "Visual.Visual" --top 10 --bottom 10 --left 10 --right 10
 pbir visuals spacing "Visual.Visual"             # Component spacing
 pbir visuals divider "Visual.Visual" --show      # Title/subtitle divider
+
+# Table density and mutually exclusive width modes
+pbir visuals table-density "Table.Visual" --preset compact --row-padding 0 --image-height 30 --stretch-columns
+pbir visuals table-density "Table.Visual" --preset compact --row-padding 0 --image-height 30 --fit-columns-to-content
+
+# New Card target/reference label
+pbir visuals card-reference "Card.Visual" --actual "Sales.Revenue" --target "Sales.Revenue PY" --detail "Sales.Revenue vs PY %" --title "Prior year"
 
 # Header and tooltip
 pbir visuals header "Visual.Visual" --show       # Visual header icons
@@ -354,11 +364,10 @@ pbir visuals cf "Visual.Visual" --theme-colors "dataPoint.fill"             # He
 pbir visuals cf "Visual.Visual" --to-measure dataPoint.fill                 # Convert to extension measure
 pbir visuals cf "Target.Visual" --copy-from "Source.Visual"                 # Copy CF between visuals
 
-# Note: `pbir visuals cf --info`/`--list`/`--has`/`--set-color`/`--remove`/
-# `--remove-all` are deprecated and redirect to the `pbir set`/`pbir get`
-# forms above. `pbir visuals format-field` and `pbir visuals format-state`
-# are also deprecated redirects. Running any of them prints the equivalent
-# command and exits non-zero.
+# Note: the former `pbir visuals cf --info`/`--list`/`--has`/`--set-color`/
+# `--remove`/`--remove-all` flags and the `pbir visuals format-field` /
+# `format-state` commands no longer exist (removed in 0.9.30; listed in
+# `pbir context` under migration-1.0). Use the `pbir get`/`pbir set` forms above.
 ```
 
 ### Custom Visuals
@@ -444,7 +453,8 @@ pbir dax measures add "Report.Report" -t _Measures -n "YoY Growth" \
   -e 'DIVIDE([Sales]-[PY Sales],[PY Sales])' --data-type Double
 pbir dax measures add "Report.Report" -t _Fmt -n "StatusColor" \
   -e 'IF([Sales]>[Target],"good","bad")' --data-type Text
-pbir dax measures update "Report.Report" "YoY Growth" -e '<new expression>'  # edit an existing measure
+pbir dax measures update "Report.Report" "_Measures.YoY Growth" -e '<new expression>'
+pbir dax measures update "Report.Report" "_Measures.YoY Growth" --expression-file measure.dax  # preferred for long DAX
 pbir dax measures rename "Report.Report" "OldName" "NewName"
 pbir rm "Report.Report" --measure "MeasureName" -f         # remove ONE measure
 pbir dax measures clear "Report.Report" -f                 # remove ALL measures (destructive); --table to scope, --dry-run to preview
@@ -620,6 +630,22 @@ pbir usage "Sales.Workspace" -o json             # JSON for piping
 
 A local report resolves its published identity from a saved link (`pbir report link`), the model's workspace, or a prompt. By default the output shows views, viewers, pages, load times, and last-visited. `--model` (`-m`) opts into the workspace usage metrics model for richer detail; it needs Contributor+ and generating it creates a hidden model in the workspace, so it prompts unless `-y/--yes` (or `--no-input` to refuse). `--region` is a fallback only when auto-detection fails. These endpoints are undocumented Power BI service telemetry; see `.claude/rules/undocumented-apis.md` for the underlying WABI metrics APIs.
 
+## Batch Automation
+
+Declarative multi-step edits from a strict JSON spec (`version: 2`), for repeatable builds and anything that must be reviewed before it runs. One spec covers set/bind/CF/presets, layout (move, resize, align, distribute, grid, z-order), create/remove/rename/clone, filters, bookmarks, annotations, page behavior, theme, field replacement, and extension measures, plus `backup`, `validate_report`, and `assert` steps.
+
+```bash
+pbir batch examples                              # Bundled specs: audit-report, brand-format, field-measures, report-polish
+pbir batch example brand-format > batch.json     # Start from one
+pbir batch schema --version 2                    # Exact contract
+pbir batch validate batch.json                   # Shape check, no execution
+pbir batch plan batch.json --root "Report.Report" --json      # Resolved target counts + stable plan_digest (--verbose-json lists targets)
+pbir batch run batch.json --root "Report.Report" --dry-run --json
+pbir batch run batch.json --root "Report.Report" --plan-digest <hash>   # Refuses to run if the plan drifted
+```
+
+Targets resolve per step as `defaults` then `select`, minus `exclude`, filtered by `where` (a boolean tree of `{field, op, value}` leaves over `path_type`, `visual_type`, `page_name`, position, `has_bindings`, ...), then `max_targets` and `expect`. `root` may be absolute or relative to the working directory; `create_visual` bindings are checked against the model; a later step can target a visual created earlier in the same run (also in `--dry-run`); unresolved `${steps.x}` references are refused before anything runs; a mid-run failure reports what it already wrote. Prefer `batch` over shell loops when the same change must be re-applied or audited.
+
 ## Configuration and Setup
 
 ```bash
@@ -627,9 +653,12 @@ A local report resolves its published identity from a saved link (`pbir report l
 pbir config show                                 # Current settings
 pbir config init                                 # Create config file
 pbir config set debug true                       # Set config value
+pbir config paths                                # Where config, auth state, templates, backups, and caches live (--json)
+```
 
-# Plugin installation guidance
-pbir setup                                       # Prints native marketplace installation instructions
+`pbir` and `pbir-mcp` share one platform-native storage layout (since 0.9.30): configuration in the OS config directory (roaming AppData on Windows, `Library` on macOS, XDG on Linux), templates/backups/auth state in the data directory, and disposable caches (PBIX extractions, model metadata, schemas) in the cache directory. Never hard-code `~/.pbir/` or `~/.config/pbir/`; ask `pbir config paths`. The first run after upgrading migrates durable files from the legacy layout and leaves legacy caches in place for manual deletion. `PBIR_CONFIG` overrides the config file and `PBIR_AUTH_DIR` the auth directory (absolute paths). `pbir setup` was removed; install this plugin from the marketplace instead.
+
+```bash
 
 # Schema discovery and management (pbir capabilities is an alias of pbir schema)
 pbir schema status                               # Compare local vs remote schema versions
@@ -700,4 +729,4 @@ Global flags go BEFORE the subcommand: `pbir -q new report ...`, not `pbir new r
 pbir --skip fields set "R.Report/P.Page/V.Visual.title.text" --value "Draft"
 ```
 
-Use global `--output-format json` before the subcommand when supported. Command-specific `-f/--force`, `--json`, and `-F json` go after their subcommand; check `pbir <command> --help` because availability varies.
+Use global `--output-format json` before the subcommand when supported; since 0.9.32 it also covers the listing commands (`fields list`, `bookmarks list`, `dax measures list`, `dax viscalcs list`, `annotations list`, `pages interactions`), and error paths keep stdout clean for scripts. Command-specific `-f/--force`, `--json`, and `-F json` go after their subcommand; check `pbir <command> --help` because availability varies.
